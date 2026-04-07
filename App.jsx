@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from “react”;
 
-const SK = “stona-log-v3”;
+const SK = "stona-log-v3";
 const TARGET = 3_000_000;
 
 const fmt     = d => { const t=new Date(d); return `${t.getMonth()+1}/${t.getDate()}`; };
