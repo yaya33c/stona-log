@@ -154,51 +154,34 @@ export default function App() {
     if(!bookQuery.trim()) return;
     setBookLoading(true); setBookResults([]);
     const q = bookQuery.trim();
-
-    const fetchGoogle = async () => {
-      try {
-        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=10&orderBy=relevance`);
-        const json = await res.json();
-        return (json.items||[]).map(i=>({
-          id:"gb-"+i.id,
-          title:i.volumeInfo.title||"",
-          authors:(i.volumeInfo.authors||[]).join(", "),
-          thumbnail:(i.volumeInfo.imageLinks?.thumbnail||i.volumeInfo.imageLinks?.smallThumbnail||"").replace("http:","https:"),
-          publisher:i.volumeInfo.publisher||"",
-        }));
-      } catch { return []; }
-    };
-
-    const fetchNDL = async () => {
-      try {
-        const res = await fetch(`https://iss.ndl.go.jp/api/opensearch?any=${encodeURIComponent(q)}&cnt=10&mediatype=1`);
-        const text = await res.text();
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(text, "application/xml");
-        const items = Array.from(xml.querySelectorAll("item"));
-        return items.map((item, i) => {
-          const get = tag => item.querySelector(tag)?.textContent||"";
-          const creators = Array.from(item.querySelectorAll("creator")).map(e=>e.textContent).join(", ");
-          const isbn = Array.from(item.querySelectorAll("identifier")).find(e=>e.textContent.replace(/-/g,"").match(/^97[89]\d{10}$/))?.textContent||"";
-          const thumbnail = isbn ? `https://cover.openbd.jp/${isbn.replace(/-/g,"")}.jpg` : "";
-          return { id:"ndl-"+i+"-"+Date.now(), title:get("title"), authors:creators, thumbnail, publisher:get("publisher") };
-        }).filter(b=>b.title);
-      } catch { return []; }
-    };
-
-    const [gBooks, ndlBooks] = await Promise.all([fetchGoogle(), fetchNDL()]);
-    const seen = new Set();
-    const merged = [...gBooks, ...ndlBooks].filter(b => {
-      const key = b.title.replace(/\s/g,"").toLowerCase();
-      if(seen.has(key)||!b.title) return false;
-      seen.add(key); return true;
-    });
-    setBookResults(merged.slice(0,12));
-    if(merged.length===0) alert("見つかりませんでした。別のキーワードを試してください。");
+    try {
+      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=15&orderBy=relevance`);
+      const json = await res.json();
+      const gBooks = (json.items||[]).map(i=>({
+        id:"gb-"+i.id,
+        title:i.volumeInfo.title||"",
+        authors:(i.volumeInfo.authors||[]).join(", "),
+        thumbnail:(i.volumeInfo.imageLinks?.thumbnail||i.volumeInfo.imageLinks?.smallThumbnail||"").replace("http:","https:"),
+        isbn:(i.volumeInfo.industryIdentifiers||[]).find(x=>x.type==="ISBN_13")?.identifier||"",
+      }));
+      const enriched = await Promise.all(gBooks.map(async b=>{
+        if(b.thumbnail||!b.isbn) return b;
+        try {
+          const r = await fetch(`https://api.openbd.jp/v1/get?isbn=${b.isbn}`);
+          const j = await r.json();
+          const cover = j?.[0]?.summary?.cover||"";
+          return {...b, thumbnail:cover};
+        } catch { return b; }
+      }));
+      setBookResults(enriched.filter(b=>b.title).slice(0,12));
+      if(enriched.length===0) alert("見つかりませんでした。別のキーワードを試してください。");
+    } catch(e) {
+      alert("検索エラー: "+e.message);
+    }
     setBookLoading(false);
   };
 
-  const addBook = () => {
+    const addBook = () => {
     if(!selBook) return;
     save({...data,books:[{id:Date.now(),date:new Date().toISOString(),...selBook,memo:bookMemo.trim()},...data.books]});
     setSelBook(null); setBookQuery(""); setBookResults([]); setBookMemo("");
