@@ -150,12 +150,13 @@ export default function App() {
     }
   };
 
-  const searchBooks = async () => {
+  const searchBooks = async (retryCount=0) => {
     if(!bookQuery.trim()) return;
     setBookLoading(true); setBookResults([]);
     const q = bookQuery.trim();
     try {
       const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=15&orderBy=relevance`);
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const gBooks = (json.items||[]).map(i=>({
         id:"gb-"+i.id,
@@ -164,6 +165,12 @@ export default function App() {
         thumbnail:(i.volumeInfo.imageLinks?.thumbnail||i.volumeInfo.imageLinks?.smallThumbnail||"").replace("http:","https:"),
         isbn:(i.volumeInfo.industryIdentifiers||[]).find(x=>x.type==="ISBN_13")?.identifier||"",
       }));
+      if(gBooks.length===0 && retryCount<2) {
+        // 最大2回リトライ
+        await new Promise(r=>setTimeout(r,1000));
+        setBookLoading(false);
+        return searchBooks(retryCount+1);
+      }
       const enriched = await Promise.all(gBooks.map(async b=>{
         if(b.thumbnail||!b.isbn) return b;
         try {
@@ -176,6 +183,11 @@ export default function App() {
       setBookResults(enriched.filter(b=>b.title).slice(0,12));
       if(enriched.length===0) alert("見つかりませんでした。別のキーワードを試してください。");
     } catch(e) {
+      if(retryCount<2) {
+        await new Promise(r=>setTimeout(r,1000));
+        setBookLoading(false);
+        return searchBooks(retryCount+1);
+      }
       alert("検索エラー: "+e.message);
     }
     setBookLoading(false);
@@ -400,7 +412,7 @@ export default function App() {
                 <div style={{display:"flex",gap:8,marginBottom:8}}>
                   <Inp value={bookQuery} onChange={e=>setBookQuery(e.target.value)} placeholder="書名で検索" style={{flex:1}}
                     onKeyDown={e=>e.key==="Enter"&&searchBooks()}/>
-                  <Btn onClick={searchBooks} variant="secondary" style={{whiteSpace:"nowrap",padding:"10px 14px"}}>{bookLoading?"…":"検索"}</Btn>
+                  <Btn onClick={searchBooks} variant="secondary" style={{whiteSpace:"nowrap",padding:"10px 14px"}}>{bookLoading?"検索中…":"検索"}</Btn>
                 </div>
                 {bookResults.map(b=>(
                   <div key={b.id} className="hover-bg" onClick={()=>setSelBook(b)}
