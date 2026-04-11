@@ -543,7 +543,7 @@ export default function App(){
         "STONAの記録を分析し、SVGロジックツリーを生成。ルール:中央「STONA」から主要テーマ3〜5個、各テーマから具体キーワード2〜3個。登場頻度高いほどノード大きく。配色は落ち着いたオフホワイト系(背景#F4F2EE,枠#C0BAB0,テキスト#2E2B27)。viewBox="0 0 360 480"。SVGタグのみ返す。",
         "記録:\n\n"+logs, 2000
       );
-      const m=txt.match(/<svg[\s\S]*<\/svg>/i);
+      const m=txt.match(/<svg[^]*<\/svg>/i);
       setAiTree(m?m[0]:"<p style='color:#C0BAB0;font-size:13px;text-align:center'>SVG生成失敗。もう一度お試しください。</p>");
     }catch(e){setAiTree("<p style='color:#E07070;font-size:13px'>エラー: "+e.message+"</p>");}
     setAiLoading(false);
