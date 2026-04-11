@@ -96,24 +96,32 @@ function StudyCalendar({sessions}){
 
 function LineChart({data}){
   if(!data||data.length<2)return <div style={{textAlign:"center",padding:"20px 0",color:"#CCC7BE",fontSize:12}}>データなし</div>;
-  const W=300,H=100,PL=12,PR=8,PT=8,PB=20;
+  const W=320,H=130,PL=8,PR=8,PT=22,PB=18;
   const vals=[...data.map(d=>d.billing),...data.map(d=>d.profit),0];
   const maxV=Math.max(...vals,1),minV=Math.min(...vals,0),range=maxV-minV||1;
   const xStep=(W-PL-PR)/(data.length-1||1);
   const yScale=v=>PT+(H-PT-PB)*(1-(v-minV)/range);
   const toPath=arr=>arr.map((d,i)=>(i===0?"M":"L")+(PL+i*xStep).toFixed(1)+","+yScale(d).toFixed(1)).join(" ");
+  const fmtM=v=>v>=10000?Math.round(v/10000)+"万":v>0?Math.round(v/1000)+"千":"0";
   return(
-    <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:H}}>
+    <svg viewBox={"0 0 "+W+" "+H} style={{width:"100%",height:H}}>
       <line x1={PL} y1={yScale(0)} x2={W-PR} y2={yScale(0)} stroke="#E8E4DC" strokeWidth="1" strokeDasharray="2,2"/>
       <path d={toPath(data.map(d=>d.billing))} fill="none" stroke="#8A99B0" strokeWidth="1.5" strokeLinejoin="round"/>
       <path d={toPath(data.map(d=>d.profit))} fill="none" stroke="#7CA37A" strokeWidth="1.5" strokeLinejoin="round"/>
-      {data.map((d,i)=><circle key={"b"+i} cx={PL+i*xStep} cy={yScale(d.billing)} r="2.5" fill="#8A99B0"/>)}
-      {data.map((d,i)=><circle key={"p"+i} cx={PL+i*xStep} cy={yScale(d.profit)} r="2.5" fill="#7CA37A"/>)}
-      {data.map((d,i)=><text key={"l"+i} x={PL+i*xStep} y={H-4} textAnchor="middle" fontSize="8" fill="#C8C3BA">{d.label}</text>)}
+      {data.map((d,i)=>{
+        const bx=(PL+i*xStep).toFixed(1), by=yScale(d.billing).toFixed(1);
+        const px=(PL+i*xStep).toFixed(1), py=yScale(d.profit).toFixed(1);
+        return <g key={i}>
+          <circle cx={bx} cy={by} r="3" fill="#8A99B0"/>
+          {d.billing>0&&<text x={bx} y={Number(by)-5} textAnchor="middle" fontSize="7" fill="#8A99B0">{fmtM(d.billing)}</text>}
+          <circle cx={px} cy={py} r="3" fill="#7CA37A"/>
+          {d.profit!==0&&<text x={px} y={Number(py)-5} textAnchor="middle" fontSize="7" fill="#7CA37A">{fmtM(d.profit)}</text>}
+          <text x={bx} y={H-2} textAnchor="middle" fontSize="8" fill="#C8C3BA">{d.label}</text>
+        </g>;
+      })}
     </svg>
   );
 }
-
 function DiaryMiniCal({timeline,diaryDate,setDiaryDate,setDiaryAI}){
   const now=new Date(),year=now.getFullYear(),month=now.getMonth();
   const daysInMonth=new Date(year,month+1,0).getDate();
@@ -514,17 +522,27 @@ export default function App(){
     return lines.join("\n");
   };
 
+  const callClaude=async(system,userMsg,maxTokens=1000)=>{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":apiKey.trim(),"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-opus-4-5",max_tokens:maxTokens,system,messages:[{role:"user",content:userMsg}]})
+    });
+    const json=await res.json();
+    if(json.error)throw new Error(json.error.message||JSON.stringify(json.error));
+    return json.content?.[0]?.text||"";
+  };
+
   const runAI=async()=>{
-    if(!apiKey){setAiTree("設定からAPIキーを入力してください。");return;}
+    if(!apiKey.trim()){setAiTree("<p style='color:#E07070;font-size:13px'>設定からAPIキーを入力してください。</p>");return;}
     const logs=buildAllLogs();
-    if(!logs.trim()){setAiTree("記録がまだありません。");return;}
+    if(!logs.trim()){setAiTree("<p style='color:#C0BAB0;font-size:13px'>記録がまだありません。</p>");return;}
     setAiLoading(true);setAiTree("");setAiResult("");
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,
-        system:`STONAの記録を分析し、SVGロジックツリーを生成。ルール:中央「STONA」から主要テーマ3〜5個、各テーマから具体キーワード2〜3個。登場頻度高いほどノード大きく(font-sizeとrxを変える)。配色は落ち着いたオフホワイト系(背景#F4F2EE,枠#C0BAB0,テキスト#2E2B27)。viewBox="0 0 360 480"。SVGタグのみ返す。`,
-        messages:[{role:"user",content:"記録:\n\n"+logs}]})});
-      const json=await res.json();
-      const txt=json.content?.[0]?.text||"";
+      const txt=await callClaude(
+        "STONAの記録を分析し、SVGロジックツリーを生成。ルール:中央「STONA」から主要テーマ3〜5個、各テーマから具体キーワード2〜3個。登場頻度高いほどノード大きく。配色は落ち着いたオフホワイト系(背景#F4F2EE,枠#C0BAB0,テキスト#2E2B27)。viewBox="0 0 360 480"。SVGタグのみ返す。",
+        "記録:\n\n"+logs, 2000
+      );
       const m=txt.match(/<svg[\s\S]*<\/svg>/i);
       setAiTree(m?m[0]:"<p style='color:#C0BAB0;font-size:13px;text-align:center'>SVG生成失敗。もう一度お試しください。</p>");
     }catch(e){setAiTree("<p style='color:#E07070;font-size:13px'>エラー: "+e.message+"</p>");}
@@ -532,22 +550,22 @@ export default function App(){
   };
 
   const runAIText=async()=>{
-    if(!apiKey){setAiResult("設定からAPIキーを入力してください。");return;}
+    if(!apiKey.trim()){setAiResult("設定からAPIキーを入力してください。");return;}
     const logs=buildAllLogs();
     if(!logs.trim()){setAiResult("記録がまだありません。");return;}
     setAiLoading(true);setAiResult("");setAiTree("");
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
-        system:"あなたはSTONA（建設業一人親方）の経営参謀です。気づき・仕事・読書の全記録から分析して簡潔な日本語で。\n\n【見えてきたテーマ】\n- 2〜3点\n\n【仕事への示唆】\n- 2〜3点\n\n【次のアクション提案】\n- 1〜2点",
-        messages:[{role:"user",content:"全記録:\n\n"+logs}]})});
-      const json=await res.json();
-      setAiResult(json.content?.[0]?.text||"分析できませんでした。");
+      const txt=await callClaude(
+        "あなたはSTONA（建設業一人親方）の経営参謀です。気づき・仕事・読書の全記録から分析して簡潔な日本語で。\n\n【見えてきたテーマ】\n- 2〜3点\n\n【仕事への示唆】\n- 2〜3点\n\n【次のアクション提案】\n- 1〜2点",
+        "全記録:\n\n"+logs
+      );
+      setAiResult(txt||"分析できませんでした。");
     }catch(e){setAiResult("エラー: "+e.message);}
     setAiLoading(false);
   };
 
   const runDiaryAI=async()=>{
-    if(!apiKey){setDiaryAI("設定からAPIキーを入力してください。");return;}
+    if(!apiKey.trim()){setDiaryAI("設定からAPIキーを入力してください。");return;}
     if(diaryItems.length===0){setDiaryAI("この日の記録がありません。");return;}
     setDiaryLoading(true);setDiaryAI("");
     const summary=diaryItems.map(x=>{
@@ -558,11 +576,11 @@ export default function App(){
       return "";
     }).join("\n");
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,
-        system:"STONAの1日の記録を読んで、その日の空気感を引き出す詩的な2〜3文を日本語で。箇条書き不要、説明的にならず。",
-        messages:[{role:"user",content:`${diaryDate}の記録:\n\n${summary}`}]})});
-      const json=await res.json();
-      setDiaryAI(json.content?.[0]?.text||"");
+      const txt=await callClaude(
+        "STONAの1日の記録を読んで、その日の空気感を引き出す詩的な2〜3文を日本語で。箇条書き不要、説明的にならず。",
+        `${diaryDate}の記録:\n\n${summary}`, 400
+      );
+      setDiaryAI(txt||"");
     }catch(e){setDiaryAI("エラー: "+e.message);}
     setDiaryLoading(false);
   };
@@ -584,7 +602,25 @@ export default function App(){
             <div style={{fontSize:15,fontWeight:600,marginBottom:4}}>設定</div>
             <div style={{fontSize:12,color:"#C0BAB0",marginBottom:16}}>AI機能のAnthropicキー</div>
             <input type="password" value={apiKeyInput} onChange={e=>setApiKeyInput(e.target.value)} placeholder="sk-ant-..." style={{width:"100%",background:"#F4F2EE",border:"1px solid #E8E4DC",borderRadius:9,padding:"10px 12px",fontSize:13,color:"#2E2B27",fontFamily:"inherit",marginBottom:10,outline:"none"}}/>
-            <div style={{display:"flex",gap:8,marginTop:8}}><Btn onClick={saveApiKey} variant="primary" style={{flex:1}}>保存</Btn><Btn onClick={()=>setShowSettings(false)} variant="ghost">キャンセル</Btn></div>
+            <div style={{display:"flex",gap:8,marginTop:8,marginBottom:20}}>
+              <Btn onClick={saveApiKey} variant="primary" style={{flex:1}}>保存</Btn>
+              <Btn onClick={()=>setShowSettings(false)} variant="ghost">キャンセル</Btn>
+            </div>
+            <div style={{borderTop:"1px solid #F0EDE7",paddingTop:16}}>
+              <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>データエクスポート</div>
+              <div style={{fontSize:11,color:"#C0BAB0",marginBottom:10}}>AIアナライザーで分析するためにデータをコピー</div>
+              <button onClick={()=>{
+                try{
+                  const raw=localStorage.getItem("stona-log-data");
+                  if(!raw){alert("データが見つかりません");return;}
+                  if(navigator.clipboard){navigator.clipboard.writeText(raw).then(()=>alert("コピー完了!
+Claudeのアナライザーに貼り付けてください。")).catch(()=>prompt("全選択してコピーしてください",raw));}
+                  else{prompt("全選択してコピーしてください",raw);}
+                }catch(e){alert("エラー: "+e.message);}
+              }} style={{width:"100%",padding:"12px",background:"#F4F2EE",border:"1px solid #E8E4DC",borderRadius:9,fontSize:13,color:"#2E2B27",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>
+                データをコピー
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -756,11 +792,16 @@ export default function App(){
         {/* ── 原価管理 TAB ── */}
         {tab==="cost"&&<>
           <Card style={{marginBottom:12}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",marginBottom:10}}>
-              {[{label:"請求（売上）",val:"¥"+yen(monthBilling),color:"#8A99B0"},{label:"原価合計",val:"¥"+yen(monthGenka),color:"#C49A5A"},{label:"粗利",val:"¥"+yen(monthProfit),color:monthProfit>=0?"#7CA37A":"#E07070"}].map((s,i)=>(
-                <div key={i} style={{textAlign:"center",padding:"8px 4px",borderRight:i<2?"1px solid #F0EDE7":"none"}}>
-                  <div style={{fontSize:14,fontWeight:700,color:s.color,marginBottom:2}}>{s.val}</div>
-                  <div style={{fontSize:10,color:"#C0BAB0"}}>{s.label}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",marginBottom:10}}>
+              {[
+                {label:"売上",val:"¥"+yen(monthBilling),color:"#8A99B0"},
+                {label:"原価",val:"¥"+yen(monthGenka),color:"#C49A5A"},
+                {label:"粗利",val:"¥"+yen(monthProfit),color:monthProfit>=0?"#7CA37A":"#E07070"},
+                {label:"粗利率",val:monthBilling>0?Math.round((monthProfit/monthBilling)*100)+"%":"—",color:"#8A99B0"},
+              ].map((s,i)=>(
+                <div key={i} style={{textAlign:"center",padding:"8px 2px",borderRight:i<3?"1px solid #F0EDE7":"none"}}>
+                  <div style={{fontSize:13,fontWeight:700,color:s.color,marginBottom:2}}>{s.val}</div>
+                  <div style={{fontSize:9,color:"#C0BAB0"}}>{s.label}</div>
                 </div>
               ))}
             </div>
@@ -975,7 +1016,7 @@ export default function App(){
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr"}}>
                     {[{l:"請求",v:j.billing,c:"#8A99B0"},{l:"原価",v:j.genka,c:"#C49A5A"},{l:"粗利",v:profit,c:profit>=0?"#7CA37A":"#E07070"}].map((s,i)=>(
-                      <div key={i} style={{textAlign:"center",borderRight:i<2?"1px solid #F0EDE7":"none"}}>
+                      <div key={i} style={{textAlign:"center",borderRight:i<3?"1px solid #F0EDE7":"none"}}>
                         <div style={{fontSize:13,fontWeight:700,color:s.c}}>¥{yen(s.v)}</div>
                         <div style={{fontSize:10,color:"#C0BAB0"}}>{s.l}</div>
                       </div>
@@ -1085,6 +1126,94 @@ export default function App(){
               </div>
               <LineChart data={chartData}/>
             </div>
+          </Card>
+
+          <Label>年間サマリー（① - ⑫月）</Label>
+          <Card style={{marginBottom:12}}>
+            {(()=>{
+              const year=new Date().getFullYear();
+              const months=Array.from({length:12},(_,i)=>{
+                const mk2=`${year}-${String(i+1).padStart(2,"0")}`;
+                const recs=invList.filter(x=>x.month===mk2);
+                const b=recs.reduce((s,x)=>s+x.lines.reduce((a,l)=>a+Number(l.qty||0)*Number(l.price||0),0),0);
+                const g=recs.reduce((s,x)=>s+x.lines.reduce((a,l)=>a+Number(l.qty||0)*Number(l.cost||0),0),0);
+                return {month:i+1,billing:b,genka:g,profit:b-g,rate:b>0?Math.round(((b-g)/b)*100):null};
+              });
+              const totalB=months.reduce((s,m)=>s+m.billing,0);
+              const totalG=months.reduce((s,m)=>s+m.genka,0);
+              const totalP=totalB-totalG;
+              const totalRate=totalB>0?Math.round((totalP/totalB)*100):null;
+              return <>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:4,marginBottom:12,paddingBottom:10,borderBottom:"1px solid #F0EDE7"}}>
+                  {[{l:"年間売上",v:totalB,c:"#8A99B0"},{l:"年間原価",v:totalG,c:"#C49A5A"},{l:"年間粗利",v:totalP,c:totalP>=0?"#7CA37A":"#E07070"},{l:"粗利率",v:totalRate!==null?totalRate+"%":"—",c:"#8A99B0",raw:true}].map((s,i)=>(
+                    <div key={i} style={{textAlign:"center"}}>
+                      <div style={{fontSize:13,fontWeight:700,color:s.c}}>{s.raw?s.v:"¥"+yen(s.v)}</div>
+                      <div style={{fontSize:9,color:"#C0BAB0"}}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                    <thead>
+                      <tr>{["月","売上","粗利","粗利率"].map(h=><th key={h} style={{textAlign:"right",color:"#C0BAB0",fontWeight:400,padding:"2px 4px",borderBottom:"1px solid #F0EDE7"}}>{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {months.filter(m=>m.billing>0||m.genka>0).map(m=>(
+                        <tr key={m.month}>
+                          <td style={{padding:"4px",color:"#6A6058",textAlign:"right"}}>{m.month}月</td>
+                          <td style={{padding:"4px",color:"#8A99B0",fontWeight:600,textAlign:"right"}}>¥{yen(m.billing)}</td>
+                          <td style={{padding:"4px",color:m.profit>=0?"#7CA37A":"#E07070",fontWeight:600,textAlign:"right"}}>¥{yen(m.profit)}</td>
+                          <td style={{padding:"4px",color:"#8A99B0",textAlign:"right"}}>{m.rate!==null?m.rate+"%":"—"}</td>
+                        </tr>
+                      ))}
+                      {months.every(m=>m.billing===0)&&<tr><td colSpan="4" style={{textAlign:"center",color:"#CCC7BE",padding:"16px"}}>記録がありません</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </>;
+            })()}
+          </Card>
+
+          <Label>年間サマリー（{new Date().getFullYear()}年）</Label>
+          <Card style={{marginBottom:12}}>
+            {(()=>{
+              const yr=new Date().getFullYear();
+              const months=Array.from({length:12},(_,i)=>{
+                const mk2=yr+"-"+String(i+1).padStart(2,"0");
+                const recs=invList.filter(x=>x.month===mk2);
+                const b=recs.reduce((s,x)=>s+x.lines.reduce((a,l)=>a+Number(l.qty||0)*Number(l.price||0),0),0);
+                const g=recs.reduce((s,x)=>s+x.lines.reduce((a,l)=>a+Number(l.qty||0)*Number(l.cost||0),0),0);
+                return{m:i+1,b,g,p:b-g,r:b>0?Math.round(((b-g)/b)*100):null};
+              });
+              const tb=months.reduce((s,m)=>s+m.b,0);
+              const tg=months.reduce((s,m)=>s+m.g,0);
+              const tp=tb-tg;
+              const tr=tb>0?Math.round((tp/tb)*100):null;
+              return <>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:4,marginBottom:10,paddingBottom:10,borderBottom:"1px solid #F0EDE7"}}>
+                  {[{l:"年間売上",v:"¥"+yen(tb),c:"#8A99B0"},{l:"年間原価",v:"¥"+yen(tg),c:"#C49A5A"},{l:"年間粗利",v:"¥"+yen(tp),c:tp>=0?"#7CA37A":"#E07070"},{l:"粗利率",v:tr!==null?tr+"%":"—",c:"#8A99B0"}].map((s,i)=>(
+                    <div key={i} style={{textAlign:"center",borderRight:i<3?"1px solid #F0EDE7":"none"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:s.c}}>{s.v}</div>
+                      <div style={{fontSize:9,color:"#C0BAB0"}}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <div style={{display:"grid",gridTemplateColumns:"28px 1fr 1fr 36px",gap:4,marginBottom:4}}>
+                    {["月","売上","粗利","率"].map(h=><div key={h} style={{fontSize:9,color:"#C0BAB0",textAlign:"right"}}>{h}</div>)}
+                  </div>
+                  {months.filter(m=>m.b>0||m.g>0).map(m=>(
+                    <div key={m.m} style={{display:"grid",gridTemplateColumns:"28px 1fr 1fr 36px",gap:4,padding:"4px 0",borderBottom:"1px solid #F8F7F4"}}>
+                      <div style={{fontSize:11,color:"#9E9890",textAlign:"right"}}>{m.m}月</div>
+                      <div style={{fontSize:11,color:"#8A99B0",fontWeight:600,textAlign:"right"}}>¥{yen(m.b)}</div>
+                      <div style={{fontSize:11,color:m.p>=0?"#7CA37A":"#E07070",fontWeight:600,textAlign:"right"}}>¥{yen(m.p)}</div>
+                      <div style={{fontSize:11,color:"#8A99B0",textAlign:"right"}}>{m.r!==null?m.r+"%":"—"}</div>
+                    </div>
+                  ))}
+                  {months.every(m=>m.b===0)&&<div style={{textAlign:"center",color:"#CCC7BE",padding:"16px",fontSize:12}}>記録がありません</div>}
+                </div>
+              </>;
+            })()}
           </Card>
 
           <Label>来月以降の売上予定（6ヶ月）</Label>
