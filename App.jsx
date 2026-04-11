@@ -538,13 +538,12 @@ export default function App(){
     const logs=buildAllLogs();
     if(!logs.trim()){setAiTree("<p style='color:#C0BAB0;font-size:13px'>記録がまだありません。</p>");return;}
     setAiLoading(true);setAiTree("");setAiResult("");
+    const sysPrompt="STONAの記録を分析しSVGロジックツリーを生成。中央STONA から主要テーマ3-5個、各テーマから具体キーワード2-3個。配色は背景#F4F2EE枠#C0BAB0テキスト#2E2B27。SVGのみ返す。";
     try{
-      const txt=await callClaude(
-        "STONAの記録を分析し、SVGロジックツリーを生成。ルール:中央「STONA」から主要テーマ3〜5個、各テーマから具体キーワード2〜3個。登場頻度高いほどノード大きく。配色は落ち着いたオフホワイト系(背景#F4F2EE,枠#C0BAB0,テキスト#2E2B27)。viewBox="0 0 360 480"。SVGタグのみ返す。",
-        "記録:\n\n"+logs, 2000
-      );
-      const si=txt.toLowerCase().indexOf("<svg");const ei=txt.toLowerCase().lastIndexOf("</svg>")+6;
-      const svgStr=si>=0&&ei>si?txt.slice(si,ei):"";
+      const txt=await callClaude(sysPrompt,"記録:\n\n"+logs,2000);
+      const si=txt.indexOf("<svg");
+      const ei=txt.lastIndexOf("</svg>");
+      const svgStr=si>=0&&ei>si?txt.slice(si,ei+6):"";
       setAiTree(svgStr||"<p style='color:#C0BAB0;font-size:13px;text-align:center'>SVG生成失敗。もう一度お試しください。</p>");
     }catch(e){setAiTree("<p style='color:#E07070;font-size:13px'>エラー: "+e.message+"</p>");}
     setAiLoading(false);
