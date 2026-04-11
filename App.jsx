@@ -613,8 +613,7 @@ export default function App(){
                 try{
                   const raw=localStorage.getItem("stona-log-data");
                   if(!raw){alert("データが見つかりません");return;}
-                  if(navigator.clipboard){navigator.clipboard.writeText(raw).then(()=>alert("コピー完了!
-Claudeのアナライザーに貼り付けてください。")).catch(()=>prompt("全選択してコピーしてください",raw));}
+                  if(navigator.clipboard){navigator.clipboard.writeText(raw).then(()=>alert("コピー完了！Claudeのアナライザーに貼り付けてください。")).catch(()=>prompt("全選択してコピーしてください",raw));}
                   else{prompt("全選択してコピーしてください",raw);}
                 }catch(e){alert("エラー: "+e.message);}
               }} style={{width:"100%",padding:"12px",background:"#F4F2EE",border:"1px solid #E8E4DC",borderRadius:9,fontSize:13,color:"#2E2B27",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>
