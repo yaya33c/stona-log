@@ -138,7 +138,109 @@ function DiaryMiniCal({timeline,diaryDate,setDiaryDate,setDiaryAI}){
   );
 }
 
-const INITIAL={posts:[],sessions:[],books:[],places:[],goal:{examDate:"",targetHours:400},jobs:[],workers:[],workRecords:[],forecast:[],quizProgress:[]};
+const INITIAL={posts:[],sessions:[],books:[],places:[],goal:{examDate:"",targetHours:400},jobs:[],workers:[],workRecords:[],forecast:[],quizProgress:[],rival:{name:"",target:3000000},whyMemos:[],thoughtMemos:[],quizLog:[]};
+
+
+const QUIZ_Q=[
+  {id:1,q:"コンクリートの養生期間中に最も重要なことは何か？",a:["強度試験の実施","適切な温度と湿度の保持","型枠の早期解体","骨材の品質確認"],c:1},
+  {id:2,q:"鉄筋コンクリート構造において、かぶり厚さの主な目的は？",a:["デザインの美観","鉄筋の腐食防止と耐火性確保","コスト削減","施工の容易化"],c:1},
+  {id:3,q:"建設工事における「工程管理」の主な目的は？",a:["予算の削減","品質の向上","工期内完成と資源の有効活用","安全の確保"],c:2},
+  {id:4,q:"次のうち、品質管理のPDCAサイクルの正しい順序は？",a:["Plan→Check→Do→Act","Do→Plan→Check→Act","Plan→Do→Check→Act","Check→Plan→Do→Act"],c:2},
+  {id:5,q:"建設業法における「主任技術者」の配置が必要な工事の請負金額は？",a:["500万円以上","1000万円以上","全ての工事","3500万円以上"],c:2},
+  {id:6,q:"コンクリートの「スランプ」が表すものは？",a:["強度","硬化時間","軟らかさ（流動性）","骨材の大きさ"],c:2},
+  {id:7,q:"足場の設置が義務付けられる高さは地面から何m以上か？",a:["1.5m","2m","3m","5m"],c:1},
+  {id:8,q:"ネットワーク工程表における「クリティカルパス」とは？",a:["最短の作業経路","余裕のない最長の作業経路","最も費用のかかる作業","最初に完了する作業"],c:1},
+  {id:9,q:"建設工事の「安全管理」において、KY活動のKYが表すものは？",a:["危険予知","確認要請","緊急予防","管理要点"],c:0},
+  {id:10,q:"コンクリートのWCB（水セメント比）が小さいほどどうなる？",a:["強度が低下する","施工性が向上する","強度が向上する","乾燥収縮が大きくなる"],c:2},
+  {id:11,q:"建設現場における「5S活動」に含まれないものは？",a:["整理","整頓","清掃","節約"],c:3},
+  {id:12,q:"杭基礎の「支持杭」と「摩擦杭」の違いとして正しいのは？",a:["支持杭は摩擦で支える","摩擦杭は硬い地盤まで到達する","支持杭は硬い地盤まで到達する","両者に違いはない"],c:2},
+  {id:13,q:"「山留め工法」の主な目的は？",a:["地盤の補強","掘削時の周辺地盤崩壊防止","地下水の排水","基礎の打設"],c:1},
+  {id:14,q:"建設工事における「出来形管理」とは何を管理するものか？",a:["作業員の出勤","完成した工事の寸法・形状","工事の出来映えの評価","施工スピード"],c:1},
+  {id:15,q:"鉄骨工事において、高力ボルトの締め付け検査方法は？",a:["トルク法のみ","ナット回転法のみ","トルク法またはナット回転法","目視確認のみ"],c:2},
+  {id:16,q:"建設業における「一式工事」に含まれるものは？",a:["電気工事","管工事","土木一式工事","塗装工事"],c:2},
+  {id:17,q:"工事現場の「作業主任者」の選任が必要な作業は？",a:["高さ1m以上の足場組立","コンクリート打設","型枠支保工の組立","塗装作業"],c:2},
+  {id:18,q:"「バーチャート工程表」の特徴として正しいのは？",a:["作業間の関係が明確","全体工期の把握が困難","作成が複雑","作業の遅れの影響がわかりやすい"],c:0},
+  {id:19,q:"コンクリートの「中性化」が問題になる主な理由は？",a:["強度低下","鉄筋の腐食促進","ひび割れの発生","色の変化"],c:1},
+  {id:20,q:"建設工事の「品質計画」に含まれる内容として適切でないものは？",a:["品質目標の設定","施工方法の明確化","工事利益の配分","検査・試験方法"],c:2},
+];
+
+function QuizCard({data,save,apiKey}){
+  const today=new Date().toISOString().slice(0,10);
+  const todayLog=(data.quizLog||[]).filter(q=>q.date===today);
+  const todayIds=new Set(todayLog.map(q=>q.qid));
+  const remaining=QUIZ_Q.filter(q=>!todayIds.has(q.id));
+  const [current,setCurrent]=React.useState(null);
+  const [selected,setSelected]=React.useState(null);
+  const [answered,setAnswered]=React.useState(false);
+
+  React.useEffect(()=>{
+    if(remaining.length>0&&!current){
+      setCurrent(remaining[Math.floor(Math.random()*remaining.length)]);
+    }
+  },[]);
+
+  if(remaining.length===0&&!current){
+    return(
+      <div style={{background:"rgba(74,138,98,0.08)",borderRadius:12,padding:"14px",textAlign:"center",marginBottom:12}}>
+        <div style={{fontSize:18,marginBottom:4}}>🎉</div>
+        <div style={{fontSize:13,color:"#4A8A62",fontWeight:600}}>今日の問題は全問完了！</div>
+        <div style={{fontSize:11,color:"#C0BAB0",marginTop:2}}>合計 {todayLog.filter(q=>q.correct).length}/{todayLog.length} 正解</div>
+      </div>
+    );
+  }
+  if(!current)return null;
+
+  const answer=(idx)=>{
+    if(answered)return;
+    setSelected(idx);
+    setAnswered(true);
+    const correct=idx===current.c;
+    const newLog=[...(data.quizLog||[]),{id:Date.now(),date:today,qid:current.id,correct}];
+    save({...data,quizLog:newLog});
+  };
+
+  const next=()=>{
+    const next=remaining.filter(q=>q.id!==current.id);
+    if(next.length>0){setCurrent(next[Math.floor(Math.random()*next.length)]);}
+    else{setCurrent(null);}
+    setSelected(null);setAnswered(false);
+  };
+
+  const correct=todayLog.filter(q=>q.correct).length;
+  const total=todayLog.length;
+
+  return(
+    <div style={{background:"#fff",borderRadius:14,border:"1px solid #EAE7E1",padding:"14px",marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{fontSize:11,color:"#C0BAB0",letterSpacing:"0.08em"}}>今日の一問 📝</div>
+        {total>0&&<div style={{fontSize:11,color:"#8A99B0"}}>{correct}/{total} 正解</div>}
+      </div>
+      <div style={{fontSize:14,color:"#2E2B27",lineHeight:1.6,marginBottom:12,fontWeight:500}}>{current.q}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {current.a.map((ans,i)=>{
+          let bg="transparent",border="1px solid #E8E4DC",color="#4A4740";
+          if(answered){
+            if(i===current.c){bg="rgba(124,163,122,0.12)";border="1px solid #7CA37A";color="#4A8A62";}
+            else if(i===selected&&selected!==current.c){bg="rgba(220,100,80,0.08)";border="1px solid #E07070";color="#C05040";}
+          }
+          return(
+            <button key={i} onClick={()=>answer(i)} style={{textAlign:"left",padding:"9px 12px",borderRadius:9,fontSize:13,cursor:answered?"default":"pointer",fontFamily:"inherit",background:bg,border,color,transition:"all 0.15s"}}>
+              {["A","B","C","D"][i]}. {ans}
+            </button>
+          );
+        })}
+      </div>
+      {answered&&(
+        <div style={{marginTop:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:13,fontWeight:600,color:selected===current.c?"#4A8A62":"#C05040"}}>
+            {selected===current.c?"✓ 正解！":"✗ 不正解"}
+          </div>
+          <button onClick={next} style={{fontSize:12,color:"#8A99B0",background:"none",border:"1px solid #E8E4DC",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit"}}>次の問題 →</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const Inp=({value,onChange,placeholder,type="text",style={}})=>(
   <input type={type} value={value} onChange={onChange} placeholder={placeholder}
@@ -241,6 +343,31 @@ export default function App(){
   // ai
   const [aiResult,setAiResult]=useState("");
   const [aiLoading,setAiLoading]=useState(false);
+
+  // ① quiz - useRef for stable reference
+  const [quizKey,setQuizKey]=useState(0); // force remount quiz
+
+  // ⑨ rival
+  const [showRival,setShowRival]=useState(false);
+  const [rivalName,setRivalName]=useState("");
+  const [rivalTarget,setRivalTarget]=useState("");
+
+  // ⑯ news
+  const [newsResult,setNewsResult]=useState("");
+  const [newsLoading,setNewsLoading]=useState(false);
+  const [newsDate,setNewsDate]=useState("");
+
+  // ⑱ why memo
+  const [showWhy,setShowWhy]=useState(false);
+  const [whyEvent,setWhyEvent]=useState("");
+  const [why1,setWhy1]=useState("");
+  const [why2,setWhy2]=useState("");
+  const [why3,setWhy3]=useState("");
+
+  // ㊼ thought experiment
+  const [showThought,setShowThought]=useState(false);
+  const [thoughtPerspective,setThoughtPerspective]=useState("");
+  const [thoughtText,setThoughtText]=useState("");
 
   useEffect(()=>{
     try{const r=localStorage.getItem(SK);if(r)setData(JSON.parse(r));}catch{}
@@ -444,6 +571,49 @@ export default function App(){
     setDiaryLoading(false);
   };
 
+  // ⑨ rival actions
+  const saveRival=()=>{
+    const t=parseInt(rivalTarget)||3000000;
+    save({...data,rival:{name:rivalName.trim()||"ライバル",target:t}});
+    setShowRival(false);
+  };
+
+  // ⑯ news action
+  const runNews=async()=>{
+    if(!apiKey){setNewsResult("設定からAPIキーを入力してください。");return;}
+    setNewsLoading(true);setNewsResult("");
+    try{
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:800,system:"あなたは建設業専門のニュースアナリストです。日本の建設業界に関わるトピックを簡潔にまとめてください。
+
+【今週の建設業トピック】
+- 法改正・規制動向（2〜3点）
+- 補助金・助成金情報（1〜2点）
+- 業界トレンド・技術動向（1〜2点）
+
+各項目は2〜3行で簡潔に。実際の情報がわからない場合は「確認が必要」と明記すること。",messages:[{role:"user",content:"今日は"+new Date().toLocaleDateString("ja-JP")+"です。建設業界の最新動向を教えてください。"}]})});
+      const json=await res.json();
+      setNewsResult(json.content?.[0]?.text||"情報を取得できませんでした。");
+      setNewsDate(new Date().toLocaleDateString("ja-JP"));
+    }catch(e){setNewsResult("エラー: "+e.message);}
+    setNewsLoading(false);
+  };
+
+  // ⑱ why memo action
+  const saveWhy=()=>{
+    if(!whyEvent.trim())return;
+    const w={id:Date.now(),date:isoDay(new Date()),event:whyEvent.trim(),why1:why1.trim(),why2:why2.trim(),why3:why3.trim()};
+    save({...data,whyMemos:[w,...(data.whyMemos||[])]});
+    setWhyEvent("");setWhy1("");setWhy2("");setWhy3("");setShowWhy(false);
+  };
+
+  // ㊼ thought experiment action
+  const saveThought=()=>{
+    if(!thoughtText.trim())return;
+    const t={id:Date.now(),date:isoDay(new Date()),perspective:thoughtPerspective.trim(),text:thoughtText.trim()};
+    save({...data,thoughtMemos:[t,...(data.thoughtMemos||[])]});
+    setThoughtPerspective("");setThoughtText("");setShowThought(false);
+  };
+
   const clientSummary=(()=>{
     const map={};
     filteredRecords.forEach(r=>{
@@ -515,10 +685,7 @@ export default function App(){
             <div style={{display:"flex",alignItems:"center",gap:12,padding:"16px 0 14px",borderBottom:"1px solid #E8E4DC",marginBottom:14}}>
               <button onClick={()=>setSubScreen(null)} style={{background:"none",border:"none",fontSize:20,color:"#6E6A63",cursor:"pointer",padding:"0 4px"}}>‹</button>
               <div style={{fontSize:15,fontWeight:600}}>
-                {subScreen==="diary"?"日記"}
-                {subScreen==="places"?"場所"}
-                {subScreen==="ai"?"AI分析"}
-                {subScreen==="books"?"読書を記録"}
+                {subScreen==="diary"?"日記":subScreen==="places"?"場所":subScreen==="ai"?"AI分析":"読書を記録"}
               </div>
             </div>
 
@@ -626,6 +793,16 @@ export default function App(){
                 </div>
               ))}
             </>}
+            {/* ⑯ 建設業ニュース */}
+            {subScreen==="news"&&<>
+              <Card style={{marginBottom:12}}>
+                <div style={{fontSize:13,color:"#4A4740",lineHeight:1.7,marginBottom:14}}>建設業界の法改正・補助金・トレンドをAIが要約します。</div>
+                {!apiKey&&<div style={{fontSize:12,color:"#C49A5A",marginBottom:10}}>⚙ 右上の設定からAPIキーを入力してください</div>}
+                <Btn onClick={runNews} variant="primary" style={{width:"100%",opacity:newsLoading?0.6:1}}>{newsLoading?"取得中…":"最新情報を取得する"}</Btn>
+                {newsDate&&<div style={{fontSize:10,color:"#C0BAB0",textAlign:"right",marginTop:6}}>{newsDate}時点</div>}
+              </Card>
+              {newsResult&&<Card className="fade"><div style={{fontSize:11,color:"#C0BAB0",marginBottom:10,letterSpacing:"0.08em"}}>建設業トピック</div><div style={{fontSize:13,color:"#4A4740",lineHeight:1.85,whiteSpace:"pre-wrap"}}>{newsResult}</div></Card>}
+            </>}
           </div>
         </div>
       )}
@@ -648,6 +825,9 @@ export default function App(){
         </div>
 
         <div style={{padding:"0 14px 100px"}}>
+          {/* ① 今日の一問 */}
+          <QuizCard data={data} save={save} apiKey={apiKey}/>
+
           {/* Quick input card */}
           <Card style={{marginBottom:14}}>
             {/* Mode selector */}
@@ -733,6 +913,10 @@ export default function App(){
               🗺 場所
             </button>
           </div>
+          {/* ⑯ 建設業ニュース */}
+          <button onClick={()=>setSubScreen("news")} style={{width:"100%",padding:"10px",background:"#fff",border:"1px solid #EAE7E1",borderRadius:10,fontSize:12,color:"#8A8070",cursor:"pointer",fontFamily:"inherit",marginTop:8}}>
+            📰 建設業ニュース・法改正
+          </button>
         </div>
       </>}
 
@@ -754,6 +938,26 @@ export default function App(){
           </div>
           <div style={{fontSize:11,color:"#C8C3BA",marginTop:6,textAlign:"center"}}>目標 ¥3,000,000 まで ¥{yen(Math.max(0,TARGET-monthProfit))}</div>
         </Card>
+
+        {/* ㊳ 案件パイプライン */}
+        <Label>案件パイプライン</Label>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+          {["商談中","進行中","完了","中断"].map(status=>{
+            const jobs=data.jobs.filter(j=>(j.status||"進行中")===status);
+            const colors={"商談中":"#8A99B0","進行中":"#C49A5A","完了":"#7CA37A","中断":"#C0BAB0"};
+            const bgs={"商談中":"rgba(138,153,176,0.08)","進行中":"rgba(196,154,90,0.08)","完了":"rgba(124,163,122,0.08)","中断":"rgba(192,186,176,0.08)"};
+            return(
+              <div key={status} style={{background:bgs[status],borderRadius:12,padding:"12px",border:"1px solid "+colors[status]+"33"}}>
+                <div style={{fontSize:11,color:colors[status],fontWeight:600,marginBottom:6}}>{status}</div>
+                {jobs.length===0
+                  ?<div style={{fontSize:11,color:"#C8C3BA"}}>なし</div>
+                  :jobs.map(j=><div key={j.id} style={{fontSize:12,color:"#4A4740",marginBottom:3,paddingBottom:3,borderBottom:"1px solid "+colors[status]+"22"}}>{j.name}<div style={{fontSize:10,color:"#C0BAB0"}}>{j.client}</div></div>)
+                }
+                <div style={{fontSize:10,color:colors[status],marginTop:4,fontWeight:600}}>{jobs.length}件</div>
+              </div>
+            );
+          })}
+        </div>
 
         <div style={{display:"flex",gap:6,overflowX:"auto",marginBottom:12,WebkitOverflowScrolling:"touch",paddingBottom:2}}>
           {allMonths.map(m=>(
@@ -1076,6 +1280,120 @@ export default function App(){
             </div>
           ))}
         </Card>
+
+        {/* ⑨ ライバル設定 */}
+        <Label>ライバル設定</Label>
+        <Card style={{marginBottom:12}}>
+          {showRival
+            ?<div className="fade">
+              <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>ライバルを設定</div>
+              <div style={{marginBottom:8}}><div style={{fontSize:11,color:"#C0BAB0",marginBottom:4}}>ライバルの名前</div><Inp value={rivalName} onChange={e=>setRivalName(e.target.value)} placeholder="例：田中組"/></div>
+              <div style={{marginBottom:12}}><div style={{fontSize:11,color:"#C0BAB0",marginBottom:4}}>月次粗利目標（円）</div><Inp type="number" value={rivalTarget} onChange={e=>setRivalTarget(e.target.value)} placeholder="3000000"/></div>
+              <div style={{display:"flex",gap:8}}><Btn onClick={saveRival} variant="primary" style={{flex:1}}>設定する</Btn><Btn onClick={()=>setShowRival(false)} variant="ghost">キャンセル</Btn></div>
+            </div>
+            :<>
+              {data.rival&&data.rival.name
+                ?<div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                    <div><div style={{fontSize:13,fontWeight:600,color:"#2E2B27"}}>{data.rival.name}</div><div style={{fontSize:11,color:"#C0BAB0"}}>目標 ¥{yen(data.rival.target)}/月</div></div>
+                    <button onClick={()=>{setRivalName(data.rival.name);setRivalTarget(String(data.rival.target));setShowRival(true);}} style={{background:"none",border:"none",color:"#C8C3BA",fontSize:12,cursor:"pointer"}}>変更</button>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
+                    <div style={{textAlign:"center",padding:"10px",background:"rgba(196,154,90,0.08)",borderRadius:10}}>
+                      <div style={{fontSize:18,fontWeight:700,color:"#C49A5A"}}>¥{yen(monthProfit)}</div>
+                      <div style={{fontSize:10,color:"#C0BAB0"}}>あなた</div>
+                    </div>
+                    <div style={{textAlign:"center",padding:"10px",background:"rgba(138,153,176,0.08)",borderRadius:10}}>
+                      <div style={{fontSize:18,fontWeight:700,color:"#8A99B0"}}>¥{yen(data.rival.target)}</div>
+                      <div style={{fontSize:10,color:"#C0BAB0"}}>{data.rival.name}</div>
+                    </div>
+                  </div>
+                  {monthProfit<data.rival.target
+                    ?<div style={{fontSize:12,color:"#C05040",textAlign:"center"}}>あと ¥{yen(data.rival.target-monthProfit)} で逆転！</div>
+                    :<div style={{fontSize:12,color:"#4A8A62",textAlign:"center"}}>🏆 ¥{yen(monthProfit-data.rival.target)} リード中！</div>
+                  }
+                </div>
+                :<button onClick={()=>{setRivalName("");setRivalTarget("3000000");setShowRival(true);}} style={{width:"100%",padding:"11px",background:"transparent",border:"1.5px dashed #DDD8D0",borderRadius:8,color:"#C0BAB0",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>＋ ライバルを設定する</button>
+              }
+            </>
+          }
+        </Card>
+
+        {/* ⑱ なぜ？深掘りメモ */}
+        <Label>なぜ？深掘りメモ</Label>
+        <Card style={{marginBottom:12}}>
+          {showWhy
+            ?<div className="fade">
+              <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>出来事を深掘りする</div>
+              <div style={{marginBottom:8}}><div style={{fontSize:11,color:"#C0BAB0",marginBottom:4}}>出来事（うまくいった / 失敗した）</div><Inp value={whyEvent} onChange={e=>setWhyEvent(e.target.value)} placeholder="例：見積もりで値下げさせられた"/></div>
+              <div style={{marginBottom:8}}><div style={{fontSize:11,color:"#C0BAB0",marginBottom:4}}>なぜ①</div><Inp value={why1} onChange={e=>setWhy1(e.target.value)} placeholder="なぜそうなった？"/></div>
+              <div style={{marginBottom:8}}><div style={{fontSize:11,color:"#C0BAB0",marginBottom:4}}>なぜ②</div><Inp value={why2} onChange={e=>setWhy2(e.target.value)} placeholder="さらに、なぜ？"/></div>
+              <div style={{marginBottom:12}}><div style={{fontSize:11,color:"#C0BAB0",marginBottom:4}}>なぜ③（本質）</div><Inp value={why3} onChange={e=>setWhy3(e.target.value)} placeholder="根本の原因は？"/></div>
+              <div style={{display:"flex",gap:8}}><Btn onClick={saveWhy} variant="primary" style={{flex:1}}>保存</Btn><Btn onClick={()=>setShowWhy(false)} variant="ghost">キャンセル</Btn></div>
+            </div>
+            :<button onClick={()=>setShowWhy(true)} style={{width:"100%",padding:"11px",background:"transparent",border:"1.5px dashed #DDD8D0",borderRadius:8,color:"#C0BAB0",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>＋ 深掘りメモを追加</button>
+          }
+          {(data.whyMemos||[]).length>0&&(
+            <div style={{marginTop:showWhy?12:0}}>
+              {(data.whyMemos||[]).slice(0,3).map(w=>(
+                <div key={w.id} style={{borderTop:"1px solid #F0EDE7",paddingTop:10,marginTop:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                    <div style={{fontSize:13,fontWeight:500,color:"#2E2B27",flex:1}}>{w.event}</div>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <span style={{fontSize:10,color:"#C0BAB0"}}>{w.date}</span>
+                      <button onClick={()=>save({...data,whyMemos:(data.whyMemos||[]).filter(x=>x.id!==w.id)})} style={{background:"none",border:"none",color:"#D8D3CA",fontSize:14,cursor:"pointer"}}>x</button>
+                    </div>
+                  </div>
+                  {w.why1&&<div style={{fontSize:12,color:"#8A8070",marginBottom:3}}>① {w.why1}</div>}
+                  {w.why2&&<div style={{fontSize:12,color:"#8A8070",marginBottom:3}}>② {w.why2}</div>}
+                  {w.why3&&<div style={{fontSize:12,color:"#4A8A62",fontWeight:500}}>③ {w.why3}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* ㊼ 思考実験メモ */}
+        <Label>思考実験メモ</Label>
+        <Card style={{marginBottom:12}}>
+          {showThought
+            ?<div className="fade">
+              <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>視点を変えて考える</div>
+              <div style={{marginBottom:8}}>
+                <div style={{fontSize:11,color:"#C0BAB0",marginBottom:6}}>視点を選ぶ</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                  {["元請けの立場なら","10年後の自分なら","職人の立場なら","お客さんの立場なら","競合他社なら"].map(p=>(
+                    <button key={p} onClick={()=>setThoughtPerspective(p)} style={{padding:"4px 10px",fontSize:11,borderRadius:16,cursor:"pointer",fontFamily:"inherit",border:thoughtPerspective===p?"1.5px solid #2E2B27":"1.5px solid #E2DDD5",background:thoughtPerspective===p?"#2E2B27":"transparent",color:thoughtPerspective===p?"#F7F6F3":"#A09790"}}>{p}</button>
+                  ))}
+                </div>
+                <Inp value={thoughtPerspective} onChange={e=>setThoughtPerspective(e.target.value)} placeholder="または自由入力"/>
+              </div>
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:"#C0BAB0",marginBottom:4}}>その視点から見ると？</div>
+                <textarea value={thoughtText} onChange={e=>setThoughtText(e.target.value)} placeholder="自由に書いてみる…" rows={3} style={{width:"100%",background:"#F4F2EE",border:"1px solid #E8E4DC",borderRadius:9,padding:"10px 12px",fontSize:13,color:"#2E2B27",lineHeight:1.65,fontFamily:"inherit"}}/>
+              </div>
+              <div style={{display:"flex",gap:8}}><Btn onClick={saveThought} variant="primary" style={{flex:1}}>保存</Btn><Btn onClick={()=>setShowThought(false)} variant="ghost">キャンセル</Btn></div>
+            </div>
+            :<button onClick={()=>setShowThought(true)} style={{width:"100%",padding:"11px",background:"transparent",border:"1.5px dashed #DDD8D0",borderRadius:8,color:"#C0BAB0",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>＋ 思考実験を書く</button>
+          }
+          {(data.thoughtMemos||[]).length>0&&(
+            <div style={{marginTop:showThought?12:0}}>
+              {(data.thoughtMemos||[]).slice(0,3).map(t=>(
+                <div key={t.id} style={{borderTop:"1px solid #F0EDE7",paddingTop:10,marginTop:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                    <span style={{fontSize:11,padding:"1px 8px",borderRadius:10,background:"rgba(138,153,176,0.1)",color:"#6A7E99",border:"1px solid rgba(138,153,176,0.2)"}}>{t.perspective}</span>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <span style={{fontSize:10,color:"#C0BAB0"}}>{t.date}</span>
+                      <button onClick={()=>save({...data,thoughtMemos:(data.thoughtMemos||[]).filter(x=>x.id!==t.id)})} style={{background:"none",border:"none",color:"#D8D3CA",fontSize:14,cursor:"pointer"}}>x</button>
+                    </div>
+                  </div>
+                  <p style={{fontSize:13,color:"#4A4740",lineHeight:1.65,margin:0}}>{t.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
       </div>}
 
       {/* Bottom nav */}
