@@ -583,14 +583,7 @@ export default function App(){
     if(!apiKey){setNewsResult("設定からAPIキーを入力してください。");return;}
     setNewsLoading(true);setNewsResult("");
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:800,system:"あなたは建設業専門のニュースアナリストです。日本の建設業界に関わるトピックを簡潔にまとめてください。
-
-【今週の建設業トピック】
-- 法改正・規制動向（2〜3点）
-- 補助金・助成金情報（1〜2点）
-- 業界トレンド・技術動向（1〜2点）
-
-各項目は2〜3行で簡潔に。実際の情報がわからない場合は「確認が必要」と明記すること。",messages:[{role:"user",content:"今日は"+new Date().toLocaleDateString("ja-JP")+"です。建設業界の最新動向を教えてください。"}]})});
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:800,system:"あなたは建設業専門のニュースアナリストです。建設業界のトピックを簡潔にまとめてください。法改正・規制動向、補助金・助成金情報、業界トレンドの3カテゴリで各2〜3行で回答。情報不明は確認が必要と明記。",messages:[{role:"user",content:"今日は"+new Date().toLocaleDateString("ja-JP")+"です。建設業界の最新動向を教えてください。"}]})});
       const json=await res.json();
       setNewsResult(json.content?.[0]?.text||"情報を取得できませんでした。");
       setNewsDate(new Date().toLocaleDateString("ja-JP"));
